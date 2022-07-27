@@ -11,14 +11,15 @@ import rospy
 
 
 class MainModel(pyCandle.Candle):
+    # working PID values 14.0 / 0.01 / 0.3
     def __init__(self, root):
         super().__init__(pyCandle.CAN_BAUD_1M, True)
         self.root = root
         self.motor_id = 101
-        self.kp = 14.0
+        self.kp = 10.0
         self.temp_kp = self.kp
-        self.ki = 0.01
-        self.kd = 0.3
+        self.ki = 100.0
+        self.kd = 0.1
         self.windup = 0.0
         self.control_mode = pyCandle.POSITION_PID
 
@@ -47,11 +48,12 @@ class MainModel(pyCandle.Candle):
         self.controlMd80Enable(self.motor_id, True)
         self.md80s[0].setPositionControllerParams(self.kp, self.ki, self.kd, self.windup)
         self.md80s[0].setMaxTorque(0.1)
+        self.set_max_velocity(10.2)
+
         #self.set_encoders_to_zero()
 
         self.begin()
-        self.set_max_velocity(5.0)
-
+        #self.set_max_velocity(0.2)
     def set_max_velocity(self, max_velocity):
         self.md80s[0].setMaxVelocity(max_velocity)
 
@@ -69,6 +71,10 @@ class MainModel(pyCandle.Candle):
 
     def get_position(self):
         return self.md80s[0].getPosition()
+
+    def change_gains(self, kp, ki, kd):
+        self.md80s[0].setPositionControllerParams(kp, ki, kd, self.windup)
+
 
     def change_pid(self):
         self.temp_kp -= 1.0

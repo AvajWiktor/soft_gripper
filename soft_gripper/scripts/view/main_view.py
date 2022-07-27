@@ -37,6 +37,10 @@ class MainWindowView:
         """
         *Code here*
         """
+        self.kp = tk.StringVar(value=self.model.kp)
+        self.ki = tk.StringVar(value=self.model.ki)
+        self.kd = tk.StringVar(value=self.model.kd)
+
         self.create_layout()
         self.add_components()
         self.create_plot()
@@ -58,8 +62,11 @@ class MainWindowView:
         self.root.mainloop()
 
     def on_closing(self):
+        import time
         self.save_data_to_file()
         self.model.end()
+        print("Koniec")
+        time.sleep(2)
         self.root.destroy()
 
     def save_data_to_file(self):
@@ -146,6 +153,9 @@ class MainWindowView:
         self.image_label_frame = ttk.LabelFrame(self.center_frame, text='Torque plots', padding=50)
         self.image_label_frame.pack(fill='both', expand=True)
 
+    def change_pid_gains(self):
+        self.model.change_gains(float(self.kp.get()),float(self.ki.get()),float(self.kd.get()))
+
     def add_components(self):
         ttk.Label(self.menu_label_frame, text='Position: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.position, width=10).pack()
@@ -165,4 +175,14 @@ class MainWindowView:
         self.torque_label = ttk.Label(self.menu_label_frame, text=0.0)
         self.torque_label.pack()
 
-        ttk.Button(self.menu_label_frame, text="test_pid", command=self.model.change_pid).pack(pady=5)
+        ttk.Button(self.menu_label_frame, text="test_pid", command=self.model.change_gains).pack(pady=5)
+
+        ttk.Label(self.menu_label_frame, text='Kp: ').pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.kp, width=10).pack()
+        ttk.Label(self.menu_label_frame, text='Ki: ').pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.ki, width=10).pack()
+        ttk.Label(self.menu_label_frame, text='Kd: ').pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.kd, width=10).pack()
+        ttk.Button(self.menu_label_frame, text="Change gains", command=self.change_pid_gains).pack(pady=5)
+
+
