@@ -1,8 +1,9 @@
+import threading
 import tkinter as tk
 import matplotlib
 import datetime as dt
 import json
-
+import time
 import rospy
 
 matplotlib.use('TkAgg')
@@ -137,6 +138,10 @@ class MainWindowView:
     def set_torque(self):
         self.model.set_torque(float(self.torque.get()))
 
+    def executor(self):
+        t = Thread(name="Closer", target=self.model.close_gripper)
+        t.start()
+
     def create_layout(self):
         """Packs basic frames to root frame"""
         self.left_frame = ttk.Frame(self.root, padding=(5, 5, 5, 5))
@@ -157,6 +162,14 @@ class MainWindowView:
         self.model.change_gains(float(self.kp.get()),float(self.ki.get()),float(self.kd.get()))
 
     def add_components(self):
+        ttk.Button(self.menu_label_frame,bootstyle='warning', text='Open', width=10, command=self.model.open_gripper).pack(pady=5)
+        ttk.Button(self.menu_label_frame,bootstyle='success', text='Close', width=10, command=self.executor).pack(pady=5)
+        ttk.Button(self.menu_label_frame,bootstyle='success', text='SetFlag', width=10, command=self.model.set_grip_flag).pack(pady=5)
+
+
+
+
+
         ttk.Label(self.menu_label_frame, text='Position: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.position, width=10).pack()
         ttk.Button(self.menu_label_frame, text='Move', width=10, command=self.set_position).pack(pady=5)
