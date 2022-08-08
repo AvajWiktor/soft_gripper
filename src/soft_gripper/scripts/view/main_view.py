@@ -52,10 +52,10 @@ class MainWindowView:
         self.position_set_point_data = []
         self.torque_animation = animation.FuncAnimation(self.torque_figure, self.animate,
                                                         fargs=(self.date_time, self.torque_data, self.torque_axes, 1),
-                                                        interval=100)
+                                                        interval=200)
         self.position_animation = animation.FuncAnimation(self.position_figure, self.animate, fargs=(
             self.date_time, self.position_data, self.position_axes, 2),
-                                                          interval=100)
+                                                          interval=200)
 
         """
         """
@@ -112,7 +112,7 @@ class MainWindowView:
             axes.plot(date_time, self.position_set_point_data)
 
         if data_type == 2:
-            axes.set_ylim([-1.5, 1.5])
+            axes.set_ylim([-12.5, 1.0])
             axes.set_ylabel("Position [Rad]")
         elif data_type == 1:
             axes.set_ylim([-0.6, 0.6])
@@ -197,5 +197,4 @@ class MainWindowView:
         ttk.Label(self.menu_label_frame, text='Kd: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.kd, width=10).pack()
         ttk.Button(self.menu_label_frame, text="Change gains", command=self.change_pid_gains).pack(pady=5)
-
 

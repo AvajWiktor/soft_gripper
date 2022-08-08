@@ -256,5 +256,5 @@ class MainModel(pyCandle.Candle):
         # plt.savefig('output/out.png')
         # cv2.imwrite('output/output.png',(cv2.resize(cv2.imread('output/out.png')),(300,400)))
 
-        return position_out/10.0
+        return position_out/1.0
         # plt.show()
