@@ -16,16 +16,19 @@ import rospy
 
 class MainModel(pyCandle.Candle):
     # working PID values 14.0 / 0.01 / 0.3
+    # working PID for position 10.0 / 100/ 0.1
     def __init__(self, root):
         super().__init__(pyCandle.CAN_BAUD_1M, True)
         self.root = root
         self.motor_id = 101
-        self.kp = 10.0
+        self.kp = 3.0
         self.temp_kp = self.kp
-        self.ki = 100.0
-        self.kd = 0.1
+        self.ki = 0.01
+        self.kd = 0.01
         self.windup = 0.0
+        self.motor_step = 0.1
         self.control_mode = pyCandle.POSITION_PID
+        #self.control_mode = pyCandle.IMPEDANCE
         self.desired_torque = 0.0
         self.grip_flag = False
         self.torque_publisher = rospy.Publisher("torque", Float32, queue_size=10)
@@ -57,10 +60,14 @@ class MainModel(pyCandle.Candle):
         self.addMd80(self.motor_id)
         self.controlMd80Mode(self.motor_id, self.control_mode)
         self.controlMd80Enable(self.motor_id, True)
-        self.md80s[0].setPositionControllerParams(self.kp, self.ki, self.kd, self.windup)
-        self.md80s[0].setMaxTorque(0.1)
-        self.set_max_velocity(10.2)
-        #self.set_encoders_to_zero()
+        if self.control_mode == pyCandle.IMPEDANCE:
+            self.md80s[0].setImpedanceControllerParams(self.kp, self.kd)
+        elif self.control_mode == pyCandle.POSITION_PID:
+            self.md80s[0].setPositionControllerParams(self.kp, self.ki, self.kd, self.windup)
+            self.md80s[0].setMaxTorque(0.45)
+            self.set_max_velocity(12.48)
+
+        self.set_encoders_to_zero()
 
         self.begin()
         # self.set_max_velocity(0.2)
@@ -112,6 +119,7 @@ class MainModel(pyCandle.Candle):
 
     def change_gains(self, kp, ki, kd):
         self.md80s[0].setPositionControllerParams(kp, ki, kd, self.windup)
+        print(f"new PID gains, KP:{self.kp}, KI:{self.ki}, KD:{self.kd}")
 
     def change_pid(self):
         self.temp_kp -= 1.0
@@ -196,7 +204,7 @@ class MainModel(pyCandle.Candle):
 
         # Calculate defuzzified result
         position_out = fuzz.defuzz(position, aggregated, 'centroid')
-        print(f"Position error: {position_out}")
+        #print(f"Position error: {position_out}")
 
         # position_activation = fuzz.interp_membership(position, aggregated, position_out)  # for plot
 
@@ -256,5 +264,5 @@ class MainModel(pyCandle.Candle):
         # plt.savefig('output/out.png')
         # cv2.imwrite('output/output.png',(cv2.resize(cv2.imread('output/out.png')),(300,400)))
 
-        return position_out/1.0
+        return position_out/5.0
         # plt.show()
