@@ -28,7 +28,7 @@ class MainModel(pyCandle.Candle):
         self.windup = 0.0
         self.motor_step = 0.1
         self.control_mode = pyCandle.POSITION_PID
-        #self.control_mode = pyCandle.IMPEDANCE
+        # self.control_mode = pyCandle.IMPEDANCE
         self.desired_torque = 0.0
         self.grip_flag = False
         self.torque_publisher = rospy.Publisher("torque", Float32, queue_size=10)
@@ -67,7 +67,7 @@ class MainModel(pyCandle.Candle):
             self.md80s[0].setMaxTorque(0.45)
             self.set_max_velocity(12.48)
 
-        self.set_encoders_to_zero()
+        # self.set_encoders_to_zero()
 
         self.begin()
         # self.set_max_velocity(0.2)
@@ -79,9 +79,9 @@ class MainModel(pyCandle.Candle):
             if (-0.1 < self.get_position() < 0.1) or tmp_flag:
                 break
             # self.set_target_position(self.position_value(self.get_torque()))
-            self.set_target_position(self.get_position() + self.position_value(self.desired_torque - self.get_torque()))
+            self.set_target_position(self.get_position() + self.calculate_position(self.desired_torque - self.get_torque()))
             time.sleep(0.001)
-            #if (self.desired_torque + 0.03) >= self.get_torque() >= self.desired_torque - 0.03:
+            # if (self.desired_torque + 0.03) >= self.get_torque() >= self.desired_torque - 0.03:
             if self.grip_flag:
                 break
 
@@ -126,12 +126,63 @@ class MainModel(pyCandle.Candle):
         print(self.temp_kp)
         self.md80s[0].setPositionControllerParams(self.temp_kp, self.ki, self.kd, self.windup)
 
+    def calculate_position(self, error_input):
+
+        error = abs(error_input)
+        print(f"Error: {error}")
+        sign = -1 if error_input < 0 else 1
+        torque_error = np.arange(0.0, 0.6, 0.02, dtype=float)
+        position = np.arange(0, 3.0, 0.1, dtype=float)
+
+        te_zero = fuzz.trapmf(torque_error, [0.0, 0.0, 0.0, 0.05])
+        te_small = fuzz.trapmf(torque_error, [0.05, 0.1, 0.1, 0.15])
+        te_medium = fuzz.trapmf(torque_error, [0.15, 0.25, 0.25, 0.3])
+        te_large = fuzz.trapmf(torque_error, [0.25, 0.3, 0.35, 0.4])
+        te_very_large = fuzz.trapmf(torque_error, [0.35, 0.40, 0.45, 0.5])
+        te_edge = fuzz.trapmf(torque_error, [0.45, 0.5, 0.5, 0.55])
+
+        p_edge = fuzz.trapmf(position, [2.0, 2.5, 2.5, 3.0])
+        p_very_large = fuzz.trapmf(position, [1.6, 1.8, 1.8, 2.0])
+        p_large = fuzz.trapmf(position, [1.2, 1.4, 1.4, 1.6])
+        p_medium = fuzz.trapmf(position, [0.8, 1.0, 1.0, 1.2])
+        p_small = fuzz.trapmf(position, [0.4, 0.6, 0.6, 0.8])
+        p_zero = fuzz.trapmf(position, [0.0, 0.0, 0.2, 0.4])
+
+        R1 = fuzz.interp_membership(torque_error, te_edge, error)
+        R2 = fuzz.interp_membership(torque_error, te_very_large, error)
+        R3 = fuzz.interp_membership(torque_error, te_large, error)
+        R4 = fuzz.interp_membership(torque_error, te_medium, error)
+        R5 = fuzz.interp_membership(torque_error, te_small, error)
+        R6 = fuzz.interp_membership(torque_error, te_zero, error)
+
+        PA1 = np.fmin(R1, p_edge)
+        PA2 = np.fmin(R2, p_very_large)
+        PA3 = np.fmin(R3, p_large)
+        PA4 = np.fmin(R4, p_medium)
+        PA5 = np.fmin(R5, p_small)
+        PA6 = np.fmin(R6, p_zero)
+
+
+
+        R_combined = np.fmax(PA1, np.fmax(PA2, np.fmax(PA3, np.fmax(PA4, np.fmax(PA5, PA6)))))
+
+        #predicted_position = np.zeros_like(torque_error)
+        #for i in range(len(predicted_position)):
+        #    print(i)
+        #    predicted_position[i] = fuzz.defuzz(position, R_combined[i, :], 'centroid')
+        #print(predicted_position)
+
+        #print(R_combined)
+        position_out = fuzz.defuzz(position, R_combined, 'centroid')
+
+        print(sign*position_out / 10.0)
+        return sign*position_out / 10.0
+
     def position_value(self, value):
         print(f"Torque error: {value}")
         # Generate universe variables
         torque = np.arange(-0.55, 0.55, 0.05, dtype=float)
         position = np.arange(-1.1, 1.1, 0.1, dtype=float)
-
         # Generate fuzzy membership functions for input
         i_neg_very_large = fuzz.trimf(torque, [-0.5, -0.45, -0.4])
         i_neg_large = fuzz.trimf(torque, [-0.4, -0.35, -0.35])
@@ -200,11 +251,12 @@ class MainModel(pyCandle.Candle):
                                                                                                      np.fmax(
                                                                                                          position_activation_positive_medium,
                                                                                                          np.fmax(
-                                                                                                             position_activation_positive_large, position_activation_positive_very_large))))))))))
+                                                                                                             position_activation_positive_large,
+                                                                                                             position_activation_positive_very_large))))))))))
 
         # Calculate defuzzified result
         position_out = fuzz.defuzz(position, aggregated, 'centroid')
-        #print(f"Position error: {position_out}")
+        # print(f"Position error: {position_out}")
 
         # position_activation = fuzz.interp_membership(position, aggregated, position_out)  # for plot
 
@@ -264,5 +316,5 @@ class MainModel(pyCandle.Candle):
         # plt.savefig('output/out.png')
         # cv2.imwrite('output/output.png',(cv2.resize(cv2.imread('output/out.png')),(300,400)))
 
-        return position_out/5.0
+        return position_out / 5.0
         # plt.show()
