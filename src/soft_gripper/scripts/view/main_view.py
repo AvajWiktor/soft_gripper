@@ -29,7 +29,7 @@ class MainWindowView:
         self.model = MainModel(self.root)
         self.position = ttk.StringVar(value='0.0')
         self.torque = ttk.StringVar(value='0.0')
-
+        self.gripper_velocity = ttk.StringVar(value='0.0')
         self.torque_figure = Figure(figsize=(6, 4), dpi=100)
         self.position_figure = Figure(figsize=(6, 4), dpi=100)
         self.torque_axes = self.torque_figure.add_subplot(1, 1, 1)
@@ -161,6 +161,11 @@ class MainWindowView:
     def change_pid_gains(self):
         self.model.change_gains(float(self.kp.get()),float(self.ki.get()),float(self.kd.get()))
 
+    def set_gripper_velocity(self):
+        vel = float(self.gripper_velocity.get())
+        if vel > 0.0:
+            self.model.set_output_divider(vel)
+
     def add_components(self):
         ttk.Button(self.menu_label_frame,bootstyle='warning', text='Open', width=10, command=self.model.open_gripper).pack(pady=5)
         ttk.Button(self.menu_label_frame,bootstyle='success', text='Close', width=10, command=self.executor).pack(pady=5)
@@ -177,6 +182,10 @@ class MainWindowView:
         ttk.Label(self.menu_label_frame, text='Torque: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.torque, width=10).pack()
         ttk.Button(self.menu_label_frame, text='Set Torque', width=10, command=self.set_torque).pack(pady=5)
+
+        ttk.Label(self.menu_label_frame, text='Gripper Velocity Gain: ').pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.gripper_velocity, width=10).pack()
+        ttk.Button(self.menu_label_frame, text='Set Gripper V', width=10, command=self.set_gripper_velocity).pack(pady=5)
 
         ttk.Button(self.menu_label_frame, text='Start record', width=10, command=self.set_position).pack(pady=5)
         ttk.Button(self.menu_label_frame, text='Stop record', width=10, command=self.set_position).pack(pady=5)

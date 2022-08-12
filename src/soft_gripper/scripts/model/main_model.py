@@ -26,6 +26,7 @@ class MainModel(pyCandle.Candle):
         self.ki = 0.01
         self.kd = 0.01
         self.windup = 0.0
+        self.output_divider = 10.0
         self.motor_step = 0.1
         self.control_mode = pyCandle.POSITION_PID
         # self.control_mode = pyCandle.IMPEDANCE
@@ -121,6 +122,9 @@ class MainModel(pyCandle.Candle):
         self.md80s[0].setPositionControllerParams(kp, ki, kd, self.windup)
         print(f"new PID gains, KP:{self.kp}, KI:{self.ki}, KD:{self.kd}")
 
+    def set_output_divider(self, value):
+        self.output_divider = value
+
     def change_pid(self):
         self.temp_kp -= 1.0
         print(self.temp_kp)
@@ -176,7 +180,7 @@ class MainModel(pyCandle.Candle):
         position_out = fuzz.defuzz(position, R_combined, 'centroid')
 
         print(sign*position_out / 10.0)
-        return sign*position_out / 10.0
+        return sign*position_out / self.output_divider
 
     def position_value(self, value):
         print(f"Torque error: {value}")
