@@ -1,3 +1,4 @@
+import sys
 import threading
 import tkinter as tk
 import matplotlib
@@ -26,6 +27,8 @@ class MainWindowView:
         self.root = ttk.Window(themename='cyborg', title='Gripper Gui')
         self.root.minsize(width=1200, height=800)
         self.model = MainModel(self.root)
+        if not self.model.program_status:
+            sys.exit()
         self.position = ttk.StringVar(value='0.0')
         self.torque = ttk.StringVar(value='0.0')
         self.gripper_velocity = ttk.StringVar(value='0.0')
@@ -163,7 +166,7 @@ class MainWindowView:
     def set_gripper_velocity(self):
         vel = float(self.gripper_velocity.get())
         if vel > 0.0:
-            self.model.set_output_divider(vel)
+            self.model.set_output_multiplier(vel)
 
     def add_components(self):
         ttk.Button(self.menu_label_frame,bootstyle='warning', text='Open', width=10, command=self.model.open_gripper).pack(pady=5)
