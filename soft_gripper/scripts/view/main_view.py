@@ -1,9 +1,9 @@
+import threading
 import tkinter as tk
 import matplotlib
 import datetime as dt
 import json
-
-import rospy
+import time
 
 matplotlib.use('TkAgg')
 
@@ -28,7 +28,7 @@ class MainWindowView:
         self.model = MainModel(self.root)
         self.position = ttk.StringVar(value='0.0')
         self.torque = ttk.StringVar(value='0.0')
-
+        self.gripper_velocity = ttk.StringVar(value='0.0')
         self.torque_figure = Figure(figsize=(6, 4), dpi=100)
         self.position_figure = Figure(figsize=(6, 4), dpi=100)
         self.torque_axes = self.torque_figure.add_subplot(1, 1, 1)
@@ -51,10 +51,10 @@ class MainWindowView:
         self.position_set_point_data = []
         self.torque_animation = animation.FuncAnimation(self.torque_figure, self.animate,
                                                         fargs=(self.date_time, self.torque_data, self.torque_axes, 1),
-                                                        interval=100)
+                                                        interval=200)
         self.position_animation = animation.FuncAnimation(self.position_figure, self.animate, fargs=(
             self.date_time, self.position_data, self.position_axes, 2),
-                                                          interval=100)
+                                                          interval=200)
 
         """
         """
@@ -80,7 +80,7 @@ class MainWindowView:
 
     def animate(self, i, date_time, data, axes, data_type):
         if len(date_time) == len(data):
-            date_time.append(rospy.get_time())
+            date_time.append(time.time())
 
         if data_type == 1:
             data.append(self.model.get_torque())
@@ -111,7 +111,7 @@ class MainWindowView:
             axes.plot(date_time, self.position_set_point_data)
 
         if data_type == 2:
-            axes.set_ylim([-1.5, 1.5])
+            axes.set_ylim([-12.5, 1.0])
             axes.set_ylabel("Position [Rad]")
         elif data_type == 1:
             axes.set_ylim([-0.6, 0.6])
@@ -137,6 +137,10 @@ class MainWindowView:
     def set_torque(self):
         self.model.set_torque(float(self.torque.get()))
 
+    def executor(self):
+        t = Thread(name="Closer", target=self.model.close_gripper)
+        t.start()
+
     def create_layout(self):
         """Packs basic frames to root frame"""
         self.left_frame = ttk.Frame(self.root, padding=(5, 5, 5, 5))
@@ -156,7 +160,20 @@ class MainWindowView:
     def change_pid_gains(self):
         self.model.change_gains(float(self.kp.get()),float(self.ki.get()),float(self.kd.get()))
 
+    def set_gripper_velocity(self):
+        vel = float(self.gripper_velocity.get())
+        if vel > 0.0:
+            self.model.set_output_divider(vel)
+
     def add_components(self):
+        ttk.Button(self.menu_label_frame,bootstyle='warning', text='Open', width=10, command=self.model.open_gripper).pack(pady=5)
+        ttk.Button(self.menu_label_frame,bootstyle='success', text='Close', width=10, command=self.executor).pack(pady=5)
+        ttk.Button(self.menu_label_frame,bootstyle='success', text='SetFlag', width=10, command=self.model.set_grip_flag).pack(pady=5)
+
+
+
+
+
         ttk.Label(self.menu_label_frame, text='Position: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.position, width=10).pack()
         ttk.Button(self.menu_label_frame, text='Move', width=10, command=self.set_position).pack(pady=5)
@@ -164,6 +181,10 @@ class MainWindowView:
         ttk.Label(self.menu_label_frame, text='Torque: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.torque, width=10).pack()
         ttk.Button(self.menu_label_frame, text='Set Torque', width=10, command=self.set_torque).pack(pady=5)
+
+        ttk.Label(self.menu_label_frame, text='Gripper Velocity Gain: ').pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.gripper_velocity, width=10).pack()
+        ttk.Button(self.menu_label_frame, text='Set Gripper V', width=10, command=self.set_gripper_velocity).pack(pady=5)
 
         ttk.Button(self.menu_label_frame, text='Start record', width=10, command=self.set_position).pack(pady=5)
         ttk.Button(self.menu_label_frame, text='Stop record', width=10, command=self.set_position).pack(pady=5)
@@ -184,5 +205,4 @@ class MainWindowView:
         ttk.Label(self.menu_label_frame, text='Kd: ').pack()
         ttk.Entry(self.menu_label_frame, textvariable=self.kd, width=10).pack()
         ttk.Button(self.menu_label_frame, text="Change gains", command=self.change_pid_gains).pack(pady=5)
-
 
