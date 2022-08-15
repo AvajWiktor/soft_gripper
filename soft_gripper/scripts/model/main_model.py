@@ -36,8 +36,9 @@ class MainModel(pyCandle.Candle):
         self.main_thread.join()
 
     def main_loop(self):
+        s_port = sys.argv[1]
         ser = serial.Serial(
-            port='/dev/ttyUSB0',
+            port=s_port,
             baudrate=9600,
             parity=serial.PARITY_NONE,
             stopbits=serial.STOPBITS_ONE,
