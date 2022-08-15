@@ -22,7 +22,7 @@ class MainModel(pyCandle.Candle):
         self.kd = 0.001
         self.windup = 0.0
         self.main_thread = Thread(name="MainLoopThread", target=self.main_loop)
-        self.output_multiplier = 0.5
+        self.output_multiplier = 1.0
         self.open_position = -12.48
         self.control_mode = pyCandle.POSITION_PID
         # self.control_mode = pyCandle.IMPEDANCE
@@ -46,7 +46,7 @@ class MainModel(pyCandle.Candle):
         )
         while self.handle_serial_input(ser.readline().decode()):
             try:
-                time.sleep(1)
+                time.sleep(0.1)
             except KeyboardInterrupt:
                 break
 
@@ -54,10 +54,29 @@ class MainModel(pyCandle.Candle):
         return self.controlMd80SetEncoderZero(self.md80s[0])
 
     def handle_serial_input(self, input):
-        print(f"input: {input}")
-        if input == 'x':
-            return False
-
+        print(f"torq: {self.get_torque()}")
+        if len(input)>0:
+            try:
+                if input[0] == 'x':
+                    return False
+                elif input[:2] == "st":
+                    self.set_torque(float(input[2:]))
+                elif input[:2] == "cl":
+                    self.grip_flag = True
+                    time.sleep(0.1)
+                    self.grip_flag = False
+                    t = Thread(name="Closer", target=self.close_gripper)
+                    t.start()
+                elif input[:2] == "op":
+                    self.open_gripper()
+                elif input[:2] == "so":
+                    if self.isFloat(input[2:]):
+                        self.open_position = float(input[2:])
+                elif input[:2] == "ss":
+                    if self.isFloat(input[2:]):
+                        self.output_multiplier = float(input[2:])
+            except Exception as e:
+                print(f"Exception occurred: {e}")
         return True
 
     def set_grip_flag(self):
@@ -104,22 +123,26 @@ class MainModel(pyCandle.Candle):
 
     def open_gripper(self):
         self.grip_flag = True
+        time.sleep(0.1)
         self.md80s[0].setTargetPosition(self.open_position)
         time.sleep(0.1)
         self.grip_flag = False
 
     def set_max_velocity(self, max_velocity):
-        self.md80s[0].setMaxVelocity(max_velocity)
+        if self.isFloat(max_velocity):
+            self.md80s[0].setMaxVelocity(max_velocity)
 
     def set_target_position(self, position):
-        self.md80s[0].setTargetPosition(position)
+        if self.isFloat(position):
+            self.md80s[0].setTargetPosition(position)
 
     def set_torque(self, torque):
-        if 0.5 > torque >= 0.0:
-            self.desired_torque = torque
-            return True
-        else:
-            return False
+        if self.isFloat(torque):
+            if 0.5 > torque >= 0.0:
+                self.desired_torque = torque
+                return True
+            else:
+                return False
 
     def get_torque(self):
         return self.md80s[0].getTorque()
@@ -132,7 +155,8 @@ class MainModel(pyCandle.Candle):
         print(f"new PID gains, KP:{self.kp}, KI:{self.ki}, KD:{self.kd}")
 
     def set_output_multiplier(self, value):
-        self.output_multiplier = value
+        if self.isFloat(value):
+            self.output_multiplier = value
 
     def prepare_fuzzy_rules(self):
         self.torque_error = np.arange(0.0, 0.6, 0.02, dtype=float)
@@ -327,3 +351,10 @@ class MainModel(pyCandle.Candle):
 
         return position_out / 5.0
         # plt.show()
+
+    def isFloat(self, num):
+        try:
+            float(num)
+            return True
+        except ValueError:
+            return False
