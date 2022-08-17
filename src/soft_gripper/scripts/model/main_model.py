@@ -24,13 +24,13 @@ class MainModel(pyCandle.Candle):
         self.kd = 0.001
         self.windup = 0.0
         self.output_multiplier = 1.0
-        self.open_position = -12.48
+        self.open_position = -6.48
         self.controller_type = 'PID'
         self.control_mode = pyCandle.POSITION_PID
         # self.control_mode = pyCandle.IMPEDANCE
         self.desired_torque = 0.0
         self.grip_flag = False
-        self.pid = PID(10, 1, 0.001, setpoint=0.0, output_limits=(-2.0, 2.0))
+        self.pid = PID(10, 2, 0.001, setpoint=0.0, output_limits=(-2.0, 2.0))
         self.prepare_fuzzy_rules()
         self.program_status = self.startup_procedure()
         if not self.program_status:
@@ -93,7 +93,7 @@ class MainModel(pyCandle.Candle):
                 self.set_target_position(self.get_position())
                 self.grip_flag = False
                 break
-            time.sleep(0.001)
+            time.sleep(0.01)
 
     def open_gripper(self):
         self.grip_flag = True
@@ -141,7 +141,7 @@ class MainModel(pyCandle.Candle):
         self.torque_error = np.arange(0.0, 0.6, 0.02, dtype=float)
         self.position = np.arange(0, 3.0, 0.1, dtype=float)
 
-        self.te_zero = fuzz.trapmf(self.torque_error, [0.0, 0.0, 0.0, 0.05])
+        self.te_zero = fuzz.trapmf(self.torque_error, [0.0, 0.0, 0.05, 0.05])
         self.te_small = fuzz.trapmf(self.torque_error, [0.05, 0.1, 0.1, 0.15])
         self.te_medium = fuzz.trapmf(self.torque_error, [0.15, 0.25, 0.25, 0.3])
         self.te_large = fuzz.trapmf(self.torque_error, [0.25, 0.3, 0.35, 0.4])
@@ -153,7 +153,7 @@ class MainModel(pyCandle.Candle):
         self.p_large = fuzz.trapmf(self.position, [1.2, 1.4, 1.4, 1.6])
         self.p_medium = fuzz.trapmf(self.position, [0.8, 1.0, 1.0, 1.2])
         self.p_small = fuzz.trapmf(self.position, [0.4, 0.6, 0.6, 0.8])
-        self.p_zero = fuzz.trapmf(self.position, [0.0, 0.0, 0.2, 0.4])
+        self.p_zero = fuzz.trapmf(self.position, [0.0, 0.0, 0.0, 0.4])
 
     def get_fuzzy_prediction(self, error_input):
 
