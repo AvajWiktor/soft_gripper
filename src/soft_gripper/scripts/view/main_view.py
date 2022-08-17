@@ -4,7 +4,6 @@ import matplotlib
 import datetime as dt
 import json
 import time
-import rospy
 
 matplotlib.use('TkAgg')
 
@@ -81,7 +80,7 @@ class MainWindowView:
 
     def animate(self, i, date_time, data, axes, data_type):
         if len(date_time) == len(data):
-            date_time.append(rospy.get_time())
+            date_time.append(time.time())
 
         if data_type == 1:
             data.append(self.model.get_torque())
@@ -164,7 +163,7 @@ class MainWindowView:
     def set_gripper_velocity(self):
         vel = float(self.gripper_velocity.get())
         if vel > 0.0:
-            self.model.set_output_divider(vel)
+            self.model.set_output_multiplier(vel)
 
     def add_components(self):
         ttk.Button(self.menu_label_frame,bootstyle='warning', text='Open', width=10, command=self.model.open_gripper).pack(pady=5)
