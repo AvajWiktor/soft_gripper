@@ -25,21 +25,23 @@ class MainWindowView:
     def __init__(self):
         self.root = ttk.Window(themename='cyborg', title='Gripper Gui')
         self.root.minsize(width=1200, height=800)
-        self.model = MainModel(self.root)
+        self.model = MainModel(self.root, self)
         self.position = ttk.StringVar(value='0.0')
         self.torque = ttk.StringVar(value='0.0')
-        self.gripper_velocity = ttk.StringVar(value='0.0')
-        self.torque_figure = Figure(figsize=(6, 4), dpi=100)
-        self.position_figure = Figure(figsize=(6, 4), dpi=100)
+        self.current_controller = ttk.StringVar(value='PID')
+        self.gripper_velocity = ttk.StringVar(value=self.model.output_multiplier)
+        self.torque_figure = Figure(figsize=(12, 4), dpi=100)
+        self.position_figure = Figure(figsize=(12, 4), dpi=100)
         self.torque_axes = self.torque_figure.add_subplot(1, 1, 1)
         self.position_axes = self.position_figure.add_subplot(1, 1, 1)
-
+        self.start_time = time.time()
         """
         *Code here*
         """
-        self.kp = tk.StringVar(value=self.model.kp)
-        self.ki = tk.StringVar(value=self.model.ki)
-        self.kd = tk.StringVar(value=self.model.kd)
+        self.kp = tk.StringVar(value=self.model.pid.Kp)
+        self.ki = tk.StringVar(value=self.model.pid.Ki)
+        self.kd = tk.StringVar(value=self.model.pid.Kd)
+
 
         self.create_layout()
         self.add_components()
@@ -51,10 +53,10 @@ class MainWindowView:
         self.position_set_point_data = []
         self.torque_animation = animation.FuncAnimation(self.torque_figure, self.animate,
                                                         fargs=(self.date_time, self.torque_data, self.torque_axes, 1),
-                                                        interval=200)
+                                                        interval=100)
         self.position_animation = animation.FuncAnimation(self.position_figure, self.animate, fargs=(
             self.date_time, self.position_data, self.position_axes, 2),
-                                                          interval=200)
+                                                          interval=100)
 
         """
         """
@@ -71,7 +73,13 @@ class MainWindowView:
 
     def save_data_to_file(self):
         data = {
+            'kp': float(self.kp.get()),
+            'ki': float(self.ki.get()),
+            'kd': float(self.kd.get()),
+            'controller_type':self.current_controller.get(),
             'torque': self.torque_data,
+            'desired_torque': self.torque_set_point_data,
+            'position': self.position_data,
             'time': self.date_time
         }
         json_string = json.dumps(data)
@@ -80,15 +88,14 @@ class MainWindowView:
 
     def animate(self, i, date_time, data, axes, data_type):
         if len(date_time) == len(data):
-            date_time.append(time.time())
-
+            date_time.append(time.time()-self.start_time)
         if data_type == 1:
             data.append(self.model.get_torque())
             try:
-                self.torque_set_point_data.append(float(self.torque.get()))
+                self.torque_set_point_data.append(float(self.model.get_desired_torque()))
             except:
                 self.torque_set_point_data.append(self.torque_set_point_data[-1])
-            self.torque_set_point_data = self.torque_set_point_data[-20:]
+            temp_torque_set_point_data = self.torque_set_point_data[-40:]
             self.torque_label.configure(text=round(data[-1], 3))
         if data_type == 2:
             data.append(self.model.get_position())
@@ -96,22 +103,22 @@ class MainWindowView:
                 self.position_set_point_data.append(float(self.position.get()))
             except:
                 self.position_set_point_data.append(self.position_set_point_data[-1])
-            self.position_set_point_data = self.position_set_point_data[-20:]
+            self.position_set_point_data = self.position_set_point_data[-40:]
             self.position_label.configure(text=round(data[-1], 3))
 
-        date_time = date_time[-20:]
-        data = data[-20:]
+        date_time = date_time[-40:]
+        data = data[-40:]
         axes.clear()
 
         if data_type == 1:
             axes.plot(date_time, data)
-            axes.plot(date_time, self.torque_set_point_data)
+            axes.plot(date_time, temp_torque_set_point_data)
         elif data_type == 2:
             axes.plot(date_time, data)
             axes.plot(date_time, self.position_set_point_data)
 
         if data_type == 2:
-            axes.set_ylim([-12.5, 1.0])
+            axes.set_ylim([-12.5, 2.0])
             axes.set_ylabel("Position [Rad]")
         elif data_type == 1:
             axes.set_ylim([-0.6, 0.6])
@@ -157,6 +164,9 @@ class MainWindowView:
         self.image_label_frame = ttk.LabelFrame(self.center_frame, text='Torque plots', padding=50)
         self.image_label_frame.pack(fill='both', expand=True)
 
+        self.status_label_frame = ttk.LabelFrame(self.left_frame, text='Gripper Status', padding=50)
+        self.status_label_frame.pack(fill='both', expand=True)
+
     def change_pid_gains(self):
         self.model.change_gains(float(self.kp.get()),float(self.ki.get()),float(self.kd.get()))
 
@@ -164,45 +174,46 @@ class MainWindowView:
         vel = float(self.gripper_velocity.get())
         if vel > 0.0:
             self.model.set_output_multiplier(vel)
+    def set_and_run(self):
+        self.set_torque()
+        self.executor()
 
     def add_components(self):
-        ttk.Button(self.menu_label_frame,bootstyle='warning', text='Open', width=10, command=self.model.open_gripper).pack(pady=5)
-        ttk.Button(self.menu_label_frame,bootstyle='success', text='Close', width=10, command=self.executor).pack(pady=5)
-        ttk.Button(self.menu_label_frame,bootstyle='success', text='SetFlag', width=10, command=self.model.set_grip_flag).pack(pady=5)
-
-
-
-
+        ttk.Button(self.menu_label_frame, bootstyle='warning', text='Open', width=15, command=self.model.open_gripper).pack(pady=5)
+        ttk.Button(self.menu_label_frame, bootstyle='success', text='Close', width=15, command=self.executor).pack(pady=5)
 
         ttk.Label(self.menu_label_frame, text='Position: ').pack()
-        ttk.Entry(self.menu_label_frame, textvariable=self.position, width=10).pack()
-        ttk.Button(self.menu_label_frame, text='Move', width=10, command=self.set_position).pack(pady=5)
+        ttk.Entry(self.menu_label_frame, textvariable=self.position, width=15).pack()
+        ttk.Button(self.menu_label_frame, text='Move', width=15, command=self.set_position).pack(pady=5)
 
         ttk.Label(self.menu_label_frame, text='Torque: ').pack()
-        ttk.Entry(self.menu_label_frame, textvariable=self.torque, width=10).pack()
-        ttk.Button(self.menu_label_frame, text='Set Torque', width=10, command=self.set_torque).pack(pady=5)
+        ttk.Entry(self.menu_label_frame, textvariable=self.torque, width=15).pack()
+        ttk.Button(self.menu_label_frame, text='Set Torque', width=15, command=self.set_torque).pack(pady=5)
+        ttk.Button(self.menu_label_frame, text='Set & Run', width=15, command=self.set_and_run).pack(pady=5)
 
         ttk.Label(self.menu_label_frame, text='Gripper Velocity Gain: ').pack()
-        ttk.Entry(self.menu_label_frame, textvariable=self.gripper_velocity, width=10).pack()
-        ttk.Button(self.menu_label_frame, text='Set Gripper V', width=10, command=self.set_gripper_velocity).pack(pady=5)
+        ttk.Entry(self.menu_label_frame, textvariable=self.gripper_velocity, width=15).pack()
+        ttk.Button(self.menu_label_frame, text='Set Gripper V', width=15, command=self.set_gripper_velocity).pack(pady=5)
 
-        ttk.Button(self.menu_label_frame, text='Start record', width=10, command=self.set_position).pack(pady=5)
-        ttk.Button(self.menu_label_frame, text='Stop record', width=10, command=self.set_position).pack(pady=5)
+        ttk.Label(self.status_label_frame, text='Current Position: ', width=15).grid(column=0, row=1)
+        self.position_label = ttk.Label(self.status_label_frame, text=0.0, width=10)
+        self.position_label.grid(column=1, row=1)
 
-        ttk.Label(self.menu_label_frame, text='Current Position').pack()
-        self.position_label = ttk.Label(self.menu_label_frame, text=0.0)
-        self.position_label.pack()
-        ttk.Label(self.menu_label_frame, text='Current Torque').pack()
-        self.torque_label = ttk.Label(self.menu_label_frame, text=0.0)
-        self.torque_label.pack()
+        ttk.Label(self.status_label_frame, text='Current Torque: ', width=15).grid(column=0, row=2)
+        self.torque_label = ttk.Label(self.status_label_frame, text=0.0, width=10)
+        self.torque_label.grid(column=1, row=2)
 
-        ttk.Button(self.menu_label_frame, text="test_pid", command=self.model.change_gains).pack(pady=5)
+        ttk.Label(self.status_label_frame, text='Current Regulator: ', width=15).grid(column=0, row=3)
+        self.regulator_label = ttk.Label(self.status_label_frame, textvariable=self.current_controller, width=10)
+        self.regulator_label.grid(column=1, row=3)
 
         ttk.Label(self.menu_label_frame, text='Kp: ').pack()
-        ttk.Entry(self.menu_label_frame, textvariable=self.kp, width=10).pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.kp, width=15).pack()
         ttk.Label(self.menu_label_frame, text='Ki: ').pack()
-        ttk.Entry(self.menu_label_frame, textvariable=self.ki, width=10).pack()
+        ttk.Entry(self.menu_label_frame, textvariable=self.ki, width=15).pack()
         ttk.Label(self.menu_label_frame, text='Kd: ').pack()
-        ttk.Entry(self.menu_label_frame, textvariable=self.kd, width=10).pack()
-        ttk.Button(self.menu_label_frame, text="Change gains", command=self.change_pid_gains).pack(pady=5)
+        ttk.Entry(self.menu_label_frame, textvariable=self.kd, width=15).pack()
+        ttk.Button(self.menu_label_frame, text="Change gains", width=15, command=self.change_pid_gains).pack(pady=5)
 
+        ttk.Button(self.menu_label_frame, bootstyle='info', text="Change controller", width=15,
+                   command=self.model.change_controller).pack()

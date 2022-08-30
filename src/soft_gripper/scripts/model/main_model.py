@@ -14,8 +14,9 @@ import matplotlib.pyplot as plt
 class MainModel(pyCandle.Candle):
     # working PID values 14.0 / 0.01 / 0.3
     # working PID for position 10.0 / 100/ 0.1
-    def __init__(self, root):
+    def __init__(self, root, view):
         super().__init__(pyCandle.CAN_BAUD_1M, True)
+        self.view = view
         self.root = root
         self.motor_id = 101
         self.kp = 1
@@ -30,7 +31,7 @@ class MainModel(pyCandle.Candle):
         # self.control_mode = pyCandle.IMPEDANCE
         self.desired_torque = 0.0
         self.grip_flag = False
-        self.pid = PID(10, 2, 0.001, setpoint=0.0, output_limits=(-2.0, 2.0))
+        self.pid = PID(6, 1, 0.001, setpoint=0.0, output_limits=(-2.0, 2.0))
         self.prepare_fuzzy_rules()
         self.program_status = self.startup_procedure()
         if not self.program_status:
@@ -49,6 +50,7 @@ class MainModel(pyCandle.Candle):
         """
         if controller == 'Fuzzy' or 'PID':
             self.controller_type = controller
+            self.view.current_controller.set(controller)
 
     def set_encoders_to_zero(self):
         return self.controlMd80SetEncoderZero(self.md80s[0])
@@ -95,6 +97,12 @@ class MainModel(pyCandle.Candle):
                 break
             time.sleep(0.01)
 
+    def change_controller(self):
+        if self.controller_type == 'Fuzzy':
+            self.set_controller_type('PID')
+        else:
+            self.set_controller_type('Fuzzy')
+
     def open_gripper(self):
         self.grip_flag = True
         time.sleep(0.1)
@@ -134,27 +142,46 @@ class MainModel(pyCandle.Candle):
         self.pid.Kd = kd
         print(f"new PID gains, KP:{self.kp}, KI:{self.ki}, KD:{self.kd}")
 
+    def get_desired_torque(self):
+        return self.desired_torque
+
     def set_output_multiplier(self, value):
         self.output_multiplier = value
 
     def prepare_fuzzy_rules(self):
-        self.torque_error = np.arange(0.0, 0.6, 0.02, dtype=float)
-        self.position = np.arange(0, 3.0, 0.1, dtype=float)
+        # self.torque_error = np.arange(0.0, 0.6, 0.02, dtype=float)
+        # self.position = np.arange(0, 3.0, 0.1, dtype=float)
+        #
+        # self.te_zero = fuzz.trapmf(self.torque_error, [0.0, 0.0, 0.05, 0.05])
+        # self.te_small = fuzz.trapmf(self.torque_error, [0.05, 0.1, 0.1, 0.15])
+        # self.te_medium = fuzz.trapmf(self.torque_error, [0.15, 0.25, 0.25, 0.3])
+        # self.te_large = fuzz.trapmf(self.torque_error, [0.25, 0.3, 0.35, 0.4])
+        # self.te_very_large = fuzz.trapmf(self.torque_error, [0.35, 0.40, 0.45, 0.5])
+        # self.te_edge = fuzz.trapmf(self.torque_error, [0.45, 0.5, 0.5, 0.55])
+        #
+        # self.p_edge = fuzz.trapmf(self.position, [2.0, 2.5, 2.5, 3.0])
+        # self.p_very_large = fuzz.trapmf(self.position, [1.6, 1.8, 1.8, 2.0])
+        # self.p_large = fuzz.trapmf(self.position, [1.2, 1.4, 1.4, 1.6])
+        # self.p_medium = fuzz.trapmf(self.position, [0.8, 1.0, 1.0, 1.2])
+        # self.p_small = fuzz.trapmf(self.position, [0.4, 0.6, 0.6, 0.8])
+        # self.p_zero = fuzz.trapmf(self.position, [0.0, 0.0, 0.0, 0.4])
+
+        self.torque_error = np.arange(0.0, 0.6, 0.0125, dtype=float)
+        self.position = np.arange(0, 4.8, 0.1, dtype=float)
 
         self.te_zero = fuzz.trapmf(self.torque_error, [0.0, 0.0, 0.05, 0.05])
-        self.te_small = fuzz.trapmf(self.torque_error, [0.05, 0.1, 0.1, 0.15])
-        self.te_medium = fuzz.trapmf(self.torque_error, [0.15, 0.25, 0.25, 0.3])
+        self.te_small = fuzz.trapmf(self.torque_error, [0.05, 0.1, 0.15, 0.2])
+        self.te_medium = fuzz.trapmf(self.torque_error, [0.15, 0.2, 0.25, 0.3])
         self.te_large = fuzz.trapmf(self.torque_error, [0.25, 0.3, 0.35, 0.4])
         self.te_very_large = fuzz.trapmf(self.torque_error, [0.35, 0.40, 0.45, 0.5])
-        self.te_edge = fuzz.trapmf(self.torque_error, [0.45, 0.5, 0.5, 0.55])
+        self.te_edge = fuzz.trapmf(self.torque_error, [0.4, 0.5, 0.55, 0.55])
 
-        self.p_edge = fuzz.trapmf(self.position, [2.0, 2.5, 2.5, 3.0])
-        self.p_very_large = fuzz.trapmf(self.position, [1.6, 1.8, 1.8, 2.0])
-        self.p_large = fuzz.trapmf(self.position, [1.2, 1.4, 1.4, 1.6])
-        self.p_medium = fuzz.trapmf(self.position, [0.8, 1.0, 1.0, 1.2])
-        self.p_small = fuzz.trapmf(self.position, [0.4, 0.6, 0.6, 0.8])
-        self.p_zero = fuzz.trapmf(self.position, [0.0, 0.0, 0.0, 0.4])
-
+        self.p_edge = fuzz.trapmf(self.position, [1.8, 2.2, 4.8, 4.8])
+        self.p_very_large = fuzz.trapmf(self.position, [1.4, 1.6, 1.8, 2.2])
+        self.p_large = fuzz.trapmf(self.position, [0.8, 1.2, 1.4, 1.8])
+        self.p_medium = fuzz.trapmf(self.position, [0.4, 0.6, 0.8, 1.2])
+        self.p_small = fuzz.trapmf(self.position, [0.2, 0.4, 0.4, 0.6])
+        self.p_zero = fuzz.trapmf(self.position, [0.0, 0.0, 0.2, 0.2])
     def get_fuzzy_prediction(self, error_input):
 
         error = abs(error_input)
@@ -180,6 +207,8 @@ class MainModel(pyCandle.Candle):
         position_out = fuzz.defuzz(self.position, R_combined, 'centroid')
 
         return sign * position_out * self.output_multiplier
+    def get_controller_type(self):
+        return self.controller_type
 
     def get_pid_prediction(self, error_input):
         self.pid.setpoint = self.desired_torque

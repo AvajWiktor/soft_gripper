@@ -1,0 +1,8 @@
+prefix=/home/lenovo/soft_gripper/install
+
+Name: soft_gripper
+Description: Description of soft_gripper
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
